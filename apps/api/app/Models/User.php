@@ -2,16 +2,16 @@
 
 namespace App\Models;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Enums\SyncStatus;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
-use Illuminate\Notifications\Notifiable;
+use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
-    use HasFactory, Notifiable;
+    use HasApiTokens, HasFactory;
 
     /**
      * The attributes that are mass assignable.
@@ -19,10 +19,31 @@ class User extends Authenticatable
      * @var list<string>
      */
     protected $fillable = [
-        'name',
-        'email',
-        'password',
+        'github_id',
+        'username',
+        'display_name',
+        'avatar_url',
+        'github_token',
+        'timezone',
+        'is_public',
+        'total_xp',
+        'level',
+        'current_streak',
+        'longest_streak',
+        'last_active_date',
+        'streak_freezes',
+        'events_etag',
+        'last_synced_at',
+        'sync_status',
+        'sync_error',
     ];
+
+    /**
+     * The accessors to append to the model's array form.
+     *
+     * @var list<string>
+     */
+    protected $appends = [];
 
     /**
      * The attributes that should be hidden for serialization.
@@ -30,8 +51,8 @@ class User extends Authenticatable
      * @var list<string>
      */
     protected $hidden = [
-        'password',
-        'remember_token',
+        'github_token',
+        'events_etag',
     ];
 
     /**
@@ -42,8 +63,16 @@ class User extends Authenticatable
     protected function casts(): array
     {
         return [
-            'email_verified_at' => 'datetime',
-            'password' => 'hashed',
+            'github_token' => 'encrypted',
+            'is_public' => 'boolean',
+            'total_xp' => 'integer',
+            'level' => 'integer',
+            'current_streak' => 'integer',
+            'longest_streak' => 'integer',
+            'streak_freezes' => 'integer',
+            'last_active_date' => 'date:Y-m-d',
+            'last_synced_at' => 'datetime',
+            'sync_status' => SyncStatus::class,
         ];
     }
 }
