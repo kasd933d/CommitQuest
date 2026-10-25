@@ -39,7 +39,7 @@ jobs:
         run: vendor/bin/pint --test
 
       - name: Test
-        run: php artisan test --parallel --testsuite=Unit,Feature
+        run: php artisan test --testsuite=Unit,Feature
 
   frontend:
     name: Frontend (lint + typecheck + tests + build)
