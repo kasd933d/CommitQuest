@@ -21,7 +21,9 @@ return [
     'github' => [
         'client_id' => env('GITHUB_CLIENT_ID'),
         'client_secret' => env('GITHUB_CLIENT_SECRET'),
-        'redirect' => env('GITHUB_REDIRECT_URI', env('APP_URL').'/api/v1/auth/github/callback'),
+        // GitHub sends the browser back to Next's /auth/callback, which then
+        // exchanges the code server-side (PRD §4.1, docs/decisions.md).
+        'redirect' => env('GITHUB_REDIRECT_URI', env('FRONTEND_URL', 'http://localhost:3000').'/auth/callback'),
         // PRD §4.1: read:user only - we never touch private data or emails.
         'scope' => 'read:user',
     ],

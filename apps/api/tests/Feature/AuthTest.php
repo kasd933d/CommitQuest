@@ -21,7 +21,7 @@ class AuthTest extends TestCase
         config([
             'services.github.client_id' => 'test-client-id',
             'services.github.client_secret' => 'test-client-secret',
-            'services.github.redirect' => 'http://localhost:8000/api/v1/auth/github/callback',
+            'services.github.redirect' => 'http://localhost:3000/auth/callback',
         ]);
     }
 
@@ -69,6 +69,22 @@ class AuthTest extends TestCase
             ->getJson('/api/v1/me')
             ->assertOk()
             ->assertJsonPath('data.username', 'octocat');
+    }
+
+    public function test_the_signup_response_carries_the_database_defaults(): void
+    {
+        $this->fakeSocialiteUser();
+
+        $response = $this->getJson('/api/v1/auth/github/callback?code=abc&state='.$this->requestState());
+
+        // updateOrCreate() only writes the columns it knows, so the model has to
+        // be refreshed before it is serialised - otherwise the API answers
+        // timezone=null, level=0 for a brand new account.
+        $response->assertOk()
+            ->assertJsonPath('user.timezone', 'UTC')
+            ->assertJsonPath('user.is_public', true)
+            ->assertJsonPath('user.level', 1)
+            ->assertJsonPath('user.total_xp', 0);
     }
 
     public function test_second_callback_updates_instead_of_duplicating(): void

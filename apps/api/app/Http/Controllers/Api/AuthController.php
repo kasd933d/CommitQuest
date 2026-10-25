@@ -70,7 +70,7 @@ class AuthController extends Controller
                 'sync_status' => SyncStatus::Ok,
                 'sync_error' => null,
             ],
-        );
+        )->refresh(); // reload DB defaults (timezone, is_public, level) into the model
 
         $token = $user->createToken('web')->plainTextToken;
 
