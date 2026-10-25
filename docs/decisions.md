@@ -75,3 +75,63 @@ Private repo `kasd933d/CommitQuest`, default branch `main`, conventional commits
 The Laravel 12 skeleton ships PHPUnit 11 and the suite runs green as-is; Pest was
 not added in M0 to keep the bootstrap small. Revisit if test ergonomics become a
 bottleneck in M2/M3.
+
+---
+
+## 2026-10-25 — Milestone 2 (Ingestion & XP)
+
+### Idempotency is enforced by the database, not by code
+Two unique indexes do all the work: `activity_events.github_event_id` (the raw
+GitHub id, suffixed `:{sha}` when one PushEvent yields several rows) and
+`xp_ledger.(user_id, source_type, source_id)`. A second sync simply fails the
+first insert and is skipped by an `exists()` check; a second award attempt fails
+the ledger insert. `XpService::award()` also re-reads the event with
+`lockForUpdate()` inside a transaction and checks `awarded_at`, so concurrent
+jobs cannot race. Tests: syncing twice keeps the event count and `total_xp`
+byte-identical.
+
+### Award state lives on the event, XP truth lives in the ledger
+`activity_events` carries `xp_awarded`, `awarded_at` and `skipped_reason`
+(`daily_repo_cap` / `daily_xp_cap` / `missing_user`), so the feed can show both
+rewards and *why* something was not rewarded. `xp_ledger` is append-only and is
+the only input to `users.total_xp`, which `xp:rebuild` recomputes with the same
+`Levels::fromXp()` formula the API uses. Quest and badge XP will be written with
+`source_type = quest|badge`, which is exactly why the daily cap is measured on
+activity events instead of on the ledger sum (quest XP must not consume the
+300 XP activity allowance).
+
+### Day boundaries are computed in the user's timezone
+All timestamps are stored in UTC. For both caps the event's instant is converted
+to `user.timezone`, truncated to the start of that local day and converted back
+to UTC to form a half-open `[start, end)` window. A test proves the difference:
+ten commits at 20:00 UTC fill the cap for the *next* local day in
+`Asia/Karachi` (UTC+5), and a commit 15 hours earlier still fits.
+
+### Sync is a three-layer pipeline
+`GithubService` (ETag conditional GET, 304/401/403/429 interpretation, cached
+fork check, `MIN_SAFE_REMAINING = 50` backoff) → `ActivityNormalizer` (pure
+mapping: 90-day cutoff, 20 commits/push, empty & duplicate message filtering,
+PR/issue/review mapping, owned-fork filtering, `new_repo` bonus) → `SyncService`
+(persists rows, records a `sync_runs` row, dispatches `ProcessActivityEvent`).
+HTTP is only ever touched through `GithubService`, so the whole integration is
+replaceable with `Http::fake()` in tests.
+
+### Rate-limit responses are data, not exceptions
+A GitHub 403/429 records `sync_runs.status = rate_limited` plus the remaining
+quota (cached for an hour) and the job returns normally; the next scheduled run
+backs off *before* spending a request while the quota is below the safe
+threshold. A 401 sets `users.sync_status = needs_reauth` so the dashboard can ask
+the user to sign in again. Nothing throws out of the sync path, so the queue
+never marks the job as failed for something that is expected.
+
+### Manual sync throttle = one cache lock
+`POST /me/sync` uses `Cache::add('sync:lock:{id}', 1, 300)`: the first call wins
+and queues the job, the rest get 429 with a `Retry-After` header. No extra table,
+and the lock doubles as the `sync.state` flag returned by `GET /me/activity`.
+
+### Client and server API clients are separate modules
+`lib/api.ts` starts with `import "server-only"`, so a Client Component cannot
+import it (Next.js fails the build). `apiServer()` stays in `lib/api.ts`, the
+browser helper `apiFetch()` moved to `lib/api-fetch.ts`, and the shared response
+handling lives there too. This keeps the token strictly server-side while
+letting `SyncButton` call `POST /me/sync` through the proxy.
