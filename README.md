@@ -42,6 +42,19 @@ php artisan migrate --seed
 php artisan serve             # http://localhost:8000
 ```
 
+#### GitHub OAuth app
+
+Create an OAuth app under **Settings → Developer settings → OAuth Apps → New
+OAuth App** and use exactly:
+
+- Homepage URL: `http://localhost:3000`
+- Authorization callback URL: `http://localhost:3000/auth/callback`
+
+Paste the Client ID and Client Secret into `apps/api/.env`
+(`GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`). GitHub must come back to Next's
+`/auth/callback` — that route exchanges the code server-side and only then puts
+the token in an httpOnly cookie, so the token never appears in the browser.
+
 Queue worker and scheduler (two extra terminals):
 
 ```bash
