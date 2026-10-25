@@ -124,6 +124,13 @@ threshold. A 401 sets `users.sync_status = needs_reauth` so the dashboard can as
 the user to sign in again. Nothing throws out of the sync path, so the queue
 never marks the job as failed for something that is expected.
 
+### Tests never touch the development database
+`phpunit.xml` pins `DB_CONNECTION=sqlite` + `DB_DATABASE=:memory:`. Before that,
+the suite ran on `database/database.sqlite` — the same file as the dev server —
+so `RefreshDatabase` migrated it fresh for every test and silently deleted the
+local account, its tokens and its sync history. CI exports the same two
+variables, so the runner needs no `.env` either.
+
 ### Manual sync throttle = one cache lock
 `POST /me/sync` uses `Cache::add('sync:lock:{id}', 1, 300)`: the first call wins
 and queues the job, the rest get 429 with a `Retry-After` header. No extra table,
