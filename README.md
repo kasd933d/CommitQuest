@@ -85,7 +85,7 @@ CI (`.github/workflows/ci.yml`) runs lint, type check, backend tests and both bu
 | Milestone | Status | Summary |
 |---|---|---|
 | M0 — Setup | ✅ done | Monorepo, Laravel 12 + Next.js 16 scaffolds, Docker Compose, CI (lint, typecheck, tests, build) |
-| M1 — Auth | ⬜ | GitHub OAuth, Sanctum token, httpOnly cookie, protected routes |
+| M1 — Auth | ✅ done | GitHub OAuth (state-validated), Sanctum token in httpOnly cookie, proxy, `/me`, protected dashboard |
 | M2 — Ingestion & XP | ⬜ | GitHub sync, activity events, XP ledger, levels, anti-abuse caps |
 | M3 — Streaks, quests, badges | ⬜ | Streaks + heatmap, quest assignment, badges, notifications |
 | M4 — Social | ⬜ | Public profiles, leaderboards, guilds, OG image, README badge |
