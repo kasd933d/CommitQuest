@@ -29,6 +29,10 @@ Route::prefix('v1')->group(function () {
             Route::get('/me', [MeController::class, 'show']);
             Route::patch('/me', [MeController::class, 'update']);
             Route::delete('/me', [MeController::class, 'destroy']);
+
+            // ---- Activity & sync (M2) ---------------------------------------
+            Route::get('/me/activity', [MeController::class, 'activity']);
+            Route::post('/me/sync', [MeController::class, 'sync']);
         });
     });
 });

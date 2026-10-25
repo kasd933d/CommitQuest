@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\SyncStatus;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Laravel\Sanctum\HasApiTokens;
 
@@ -74,5 +75,29 @@ class User extends Authenticatable
             'last_synced_at' => 'datetime',
             'sync_status' => SyncStatus::class,
         ];
+    }
+
+    /**
+     * @return HasMany<ActivityEvent, $this>
+     */
+    public function activityEvents(): HasMany
+    {
+        return $this->hasMany(ActivityEvent::class);
+    }
+
+    /**
+     * @return HasMany<XpLedger, $this>
+     */
+    public function xpLedger(): HasMany
+    {
+        return $this->hasMany(XpLedger::class);
+    }
+
+    /**
+     * @return HasMany<SyncRun, $this>
+     */
+    public function syncRuns(): HasMany
+    {
+        return $this->hasMany(SyncRun::class);
     }
 }
