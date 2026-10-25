@@ -1,0 +1,92 @@
+# CommitQuest
+
+> Turn your real GitHub activity into an RPG. Commits, pull requests and code reviews earn XP, level you up,
+> complete quests, unlock badges and push your guild up the weekly leaderboard.
+
+Full-stack portfolio project: **Next.js (TypeScript, Tailwind)** web app + **Laravel (PHP 8.3)** JSON API + **MySQL 8**,
+with GitHub OAuth and the GitHub Events API.
+
+- Product requirements: [`CommitQuest_PRD.md`](./CommitQuest_PRD.md)
+- Engineering decisions: [`docs/decisions.md`](./docs/decisions.md)
+
+## Repository layout
+
+```
+commitquest/
+├── apps/
+│   ├── web/          # Next.js 16 (App Router, TypeScript, Tailwind 4)
+│   └── api/          # Laravel 12 JSON API (Sanctum, Socialite, queues, scheduler)
+├── docker-compose.yml
+├── .github/workflows/ci.yml
+└── docs/
+```
+
+## Quick start
+
+### Prerequisites
+
+- Node 20+ and npm
+- PHP 8.3+ with `pdo_mysql`, `pdo_sqlite`, `mbstring`, `curl`, `dom`, `xml`, `zip`
+- Composer 2
+- Docker (optional — only needed to run MySQL / the containerised stack)
+
+### 1. API
+
+```bash
+cd apps/api
+composer install
+cp .env.example .env          # then fill in the GitHub OAuth credentials
+php artisan key:generate
+touch database/database.sqlite # local SQLite dev database (see docs/decisions.md)
+php artisan migrate --seed
+php artisan serve             # http://localhost:8000
+```
+
+Queue worker and scheduler (two extra terminals):
+
+```bash
+php artisan queue:work
+php artisan schedule:run      # wire up a cron/Task Scheduler entry for every minute
+```
+
+### 2. Web
+
+```bash
+cd apps/web
+npm install
+cp .env.example .env.local
+npm run dev                   # http://localhost:3000
+```
+
+### 3. Docker (optional)
+
+```bash
+docker compose up --build     # web :3000, api :8000, mysql :3306 (+ queue & scheduler)
+```
+
+## Tests and checks
+
+```bash
+cd apps/api
+composer test         # PHPUnit/Pest suite (unit + feature)
+vendor/bin/pint       # code style
+
+cd apps/web
+npm run lint
+npm run typecheck
+npm run test:unit
+npm run build
+```
+
+CI (`.github/workflows/ci.yml`) runs lint, type check, backend tests and both builds on every push and PR.
+
+## Changelog
+
+| Milestone | Status | Summary |
+|---|---|---|
+| M0 — Setup | ✅ done | Monorepo, Laravel 12 + Next.js 16 scaffolds, Docker Compose, CI (lint, typecheck, tests, build) |
+| M1 — Auth | ⬜ | GitHub OAuth, Sanctum token, httpOnly cookie, protected routes |
+| M2 — Ingestion & XP | ⬜ | GitHub sync, activity events, XP ledger, levels, anti-abuse caps |
+| M3 — Streaks, quests, badges | ⬜ | Streaks + heatmap, quest assignment, badges, notifications |
+| M4 — Social | ⬜ | Public profiles, leaderboards, guilds, OG image, README badge |
+| M5 — Polish & launch | ⬜ | Landing page, a11y, security, seed data, deploy |
