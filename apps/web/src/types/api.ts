@@ -35,6 +35,48 @@ export interface Resource<T> {
   data: T;
 }
 
+/** Internal activity types produced by the normalizer (PRD §4.2). */
+export type ActivityType =
+  | "commit"
+  | "pr_opened"
+  | "pr_merged"
+  | "pr_review"
+  | "issue_closed"
+  | "new_repo";
+
+export interface ActivityEvent {
+  id: number;
+  type: ActivityType;
+  label: string;
+  repo_full_name: string;
+  message: string | null;
+  url: string | null;
+  occurred_at: string;
+  xp_awarded: number;
+  awarded_at: string | null;
+  skipped_reason: string | null;
+}
+
+export interface SyncState {
+  /** `cooldown` while a manual sync is throttled (5 minutes). */
+  state: "idle" | "cooldown";
+  last_synced_at: string | null;
+}
+
+/** `GET /me/activity` response: page of events plus the current sync state. */
+export interface ActivityFeed extends Resource<ActivityEvent[]> {
+  sync: SyncState;
+}
+
+/** `POST /me/sync` response. */
+export interface SyncResponse {
+  status: "queued" | "throttled";
+  queued_at?: string;
+  cooldown_seconds?: number;
+  retry_after?: number;
+  message?: string;
+}
+
 export interface AuthResponse {
   token: string;
   user: User;

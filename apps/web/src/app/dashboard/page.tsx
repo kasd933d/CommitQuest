@@ -1,8 +1,15 @@
 import { Nav } from "@/components/nav";
+import { ActivityFeed } from "@/components/activity-feed";
+import { SyncButton } from "@/components/sync-button";
 import { XpBar } from "@/components/xp-bar";
 import { apiServer } from "@/lib/api";
 import { clearToken, getToken } from "@/lib/session";
-import { ApiRequestError, type Resource, type User } from "@/types/api";
+import {
+  ApiRequestError,
+  type ActivityFeed as ActivityFeedResponse,
+  type Resource,
+  type User,
+} from "@/types/api";
 import { redirect } from "next/navigation";
 
 export const metadata = { title: "Dashboard" };
@@ -15,11 +22,16 @@ export default async function DashboardPage() {
   }
 
   let user: User | null = null;
+  let feed: ActivityFeedResponse | null = null;
   let errorMessage: string | null = null;
 
   try {
-    const response = await apiServer<Resource<User>>("/me", { token });
-    user = response.data;
+    const [me, activity] = await Promise.all([
+      apiServer<Resource<User>>("/me", { token }),
+      apiServer<ActivityFeedResponse>("/me/activity", { token }),
+    ]);
+    user = me.data;
+    feed = activity;
   } catch (error) {
     if (error instanceof ApiRequestError && error.status === 401) {
       // The token was revoked (logout elsewhere, account deleted, expired).
@@ -74,17 +86,21 @@ export default async function DashboardPage() {
             </div>
 
             <section className="panel mt-8 p-6" aria-labelledby="activity-heading">
-              <h2 id="activity-heading" className="font-pixel text-[11px] text-primary">
-                Recent activity
-              </h2>
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <h2 id="activity-heading" className="font-pixel text-[11px] text-primary">
+                    Recent activity
+                  </h2>
+                  <p className="mt-1 text-xs text-muted">
+                    Synced from the GitHub Events API · may lag by a few minutes
+                  </p>
+                </div>
 
-              <div className="mt-4 grid place-items-center gap-2 rounded border border-dashed border-border px-4 py-10 text-center">
-                <p className="font-mono text-sm text-muted">No activity synced yet</p>
-                <p className="max-w-md text-sm text-muted">
-                  Your GitHub activity is synced automatically every 15 minutes.
-                  Push a commit to a public repository and your first XP will show
-                  up here — activity can take up to 15 minutes to appear.
-                </p>
+                {feed ? <SyncButton sync={feed.sync} /> : null}
+              </div>
+
+              <div className="mt-4">
+                <ActivityFeed events={feed?.data ?? []} />
               </div>
             </section>
           </>
