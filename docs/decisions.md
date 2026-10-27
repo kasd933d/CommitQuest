@@ -150,7 +150,11 @@ Verified live against the real Events API: a `PushEvent` now ships only
 now resolves the range: `GET /repos/{repo}/compare/{before}...{head}` returns
 exactly the pushed commits; an all-zero `before` (brand-new ref) has nothing to
 compare (404), so it falls back to `GET /repos/{repo}/commits?sha={head}&per_page=20`,
-and a failed compare falls back the same way. The looser listing is made safe by
+and a failed compare falls back the same way. Both endpoints nest
+`message`/`author` under `commit` (the old payload had them top-level), so
+`pushCommits()` flattens them into the payload shape first — without that,
+every resolved commit looked message-less and the empty-message rule silently
+dropped all of them. The looser listing is made safe by
 sha-level dedupe in `ActivityNormalizer`: a commit sha already recorded for that
 user + repo (or already emitted earlier in the same normalize pass) is never
 counted again, so branch copies, re-pushes and the fallback listing cannot
