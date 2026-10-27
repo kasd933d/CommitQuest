@@ -99,7 +99,7 @@ CI (`.github/workflows/ci.yml`) runs lint, type check, backend tests and both bu
 |---|---|---|
 | M0 — Setup | ✅ done | Monorepo, Laravel 12 + Next.js 16 scaffolds, Docker Compose, CI (lint, typecheck, tests, build) |
 | M1 — Auth | ✅ done | GitHub OAuth (state-validated), Sanctum token in httpOnly cookie, proxy, `/me`, protected dashboard |
-| M2 — Ingestion & XP | ✅ done | GitHub Events sync (ETag, backoff), normalizer, `activity_events`, `XpService` + ledger, 10 commits/repo/day & 300 XP/day caps, `xp:rebuild`, activity feed + "Sync now" |
+| M2 — Ingestion & XP | ✅ done | GitHub Events sync (ETag, backoff), normalizer (commit ranges via the Compare API, sha-level dedupe), `activity_events`, `XpService` + ledger, 10 commits/repo/day & 300 XP/day caps, `xp:rebuild`, activity feed + "Sync now" |
 | M3 — Streaks, quests, badges | ⬜ | Streaks + heatmap, quest assignment, badges, notifications |
 | M4 — Social | ⬜ | Public profiles, leaderboards, guilds, OG image, README badge |
 | M5 — Polish & launch | ⬜ | Landing page, a11y, security, seed data, deploy |
