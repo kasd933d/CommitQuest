@@ -142,3 +142,17 @@ import it (Next.js fails the build). `apiServer()` stays in `lib/api.ts`, the
 browser helper `apiFetch()` moved to `lib/api-fetch.ts`, and the shared response
 handling lives there too. This keeps the token strictly server-side while
 letting `SyncButton` call `POST /me/sync` through the proxy.
+
+### PushEvent payloads no longer carry commits — resolved via Compare API
+Verified live against the real Events API: a `PushEvent` now ships only
+`{repository_id, push_id, ref, head, before}` (no `commits` array), so the PRD's
+"one row per commit in payload" would silently drop every push. `GithubService::pushCommits()`
+now resolves the range: `GET /repos/{repo}/compare/{before}...{head}` returns
+exactly the pushed commits; an all-zero `before` (brand-new ref) has nothing to
+compare (404), so it falls back to `GET /repos/{repo}/commits?sha={head}&per_page=20`,
+and a failed compare falls back the same way. The looser listing is made safe by
+sha-level dedupe in `ActivityNormalizer`: a commit sha already recorded for that
+user + repo (or already emitted earlier in the same normalize pass) is never
+counted again, so branch copies, re-pushes and the fallback listing cannot
+double-award. Legacy payloads that still contain `commits` are handled without
+any extra HTTP call. Tests cover all three paths plus cross-push dedupe.
