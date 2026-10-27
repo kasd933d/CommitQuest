@@ -15,6 +15,8 @@ use Illuminate\Support\Str;
  * Endpoints used:
  *  - GET /users/{username}/events/public  (conditional, with ETag)
  *  - GET /repos/{owner}/{repo}            (fork detection, cached 24h)
+ *  - GET /repos/{owner}/{repo}/compare/{before}...{head}  (push contents)
+ *  - GET /repos/{owner}/{repo}/commits?sha={head}         (new-ref fallback)
  */
 class GithubService
 {
@@ -85,6 +87,66 @@ class GithubService
         );
 
         return (bool) $fork;
+    }
+
+    /**
+     * The Events API stopped shipping the commit list inside PushEvent
+     * payloads (2026: only ref/head/before), so the contents of a push are
+     * resolved here (PRD §4.2).
+     *
+     *  - `before...head` via the Compare API returns exactly the pushed range.
+     *  - A brand-new ref reports an all-zero `before` (nothing to compare
+     *    against, 404), so the commits reachable from `head` are listed
+     *    instead; ActivityNormalizer drops any sha it already counted, which
+     *    keeps that looser listing honest.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function pushCommits(User $user, string $repoFullName, string $before, string $head): array
+    {
+        if (! $user->github_token || $head === '') {
+            return [];
+        }
+
+        $headers = [
+            'Accept' => 'application/vnd.github+json',
+            'X-GitHub-Api-Version' => '2022-11-28',
+        ];
+
+        $request = fn (string $url, array $query = []) => Http::withToken($user->github_token)
+            ->withHeaders($headers)
+            ->connectTimeout(5)
+            ->timeout(15)
+            ->get($url, $query);
+
+        if ($before !== '' && trim($before, '0') !== '') {
+            $response = $request(self::BASE_URL.'/repos/'.$repoFullName.'/compare/'.$before.'...'.$head);
+
+            if ($response->successful()) {
+                $commits = $response->json('commits');
+
+                if (is_array($commits)) {
+                    return $commits;
+                }
+                // Malformed body: fall through to the head listing below.
+            }
+            // Anything but 200 here (deleted `before`, odd force-push) falls
+            // back to the head listing below rather than losing the push.
+        }
+
+        // 20 = matches ActivityNormalizer::MAX_COMMITS_PER_PUSH.
+        $response = $request(self::BASE_URL.'/repos/'.$repoFullName.'/commits', [
+            'sha' => $head,
+            'per_page' => 20,
+        ]);
+
+        if (! $response->successful()) {
+            return [];
+        }
+
+        $commits = $response->json();
+
+        return is_array($commits) ? $commits : [];
     }
 
     private function interpret(Response $response, ?string $previousEtag): GithubEventsResult

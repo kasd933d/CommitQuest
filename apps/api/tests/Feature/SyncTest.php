@@ -82,6 +82,137 @@ class SyncTest extends TestCase
         $this->withAuth($user)->postJson('/api/v1/me/sync')->assertStatus(202);
     }
 
+    public function test_push_events_without_a_commit_payload_are_resolved_through_the_compare_api(): void
+    {
+        $before = '1111111111111111111111111111111111111111';
+        $head = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+
+        Http::fake([
+            'api.github.com/users/*/events/public' => Http::response([
+                $this->pushEvent('5000000001', [
+                    'ref' => 'refs/heads/main',
+                    'before' => $before,
+                    'head' => $head,
+                ]),
+            ], 200),
+            'api.github.com/repos/*/compare/*' => Http::response([
+                'status' => 'diverged',
+                'ahead_by' => 1,
+                'commits' => [$this->pushedCommit('def456', 'feat: ship the thing')],
+            ], 200),
+        ]);
+
+        $user = User::factory()->create();
+
+        app(SyncService::class)->syncUser($user);
+
+        $commit = ActivityEvent::query()
+            ->where('user_id', $user->id)
+            ->where('type', 'commit')
+            ->firstOrFail();
+
+        $this->assertSame('def456', $commit->metadata['sha']);
+        $this->assertSame('feat: ship the thing', $commit->metadata['message']);
+        $this->assertSame(5, $commit->xp_awarded);
+        // commit + the one-off new_repo bonus for octocat/hello-world.
+        $this->assertSame(5 + 30, $user->fresh()->total_xp);
+
+        Http::assertSent(fn ($request) => str_contains($request->url(), "/compare/{$before}...{$head}"));
+    }
+
+    public function test_a_new_ref_push_resolves_its_commits_from_the_head_listing(): void
+    {
+        $head = 'cccccccccccccccccccccccccccccccccccccccc';
+
+        Http::fake([
+            'api.github.com/users/*/events/public' => Http::response([
+                $this->pushEvent('5000000002', [
+                    'ref' => 'refs/heads/feature',
+                    'before' => str_repeat('0', 40),
+                    'head' => $head,
+                ]),
+            ], 200),
+            'api.github.com/repos/*/commits*' => Http::response([
+                $this->pushedCommit('aaa111', 'chore: start the feature'),
+            ], 200),
+        ]);
+
+        $user = User::factory()->create();
+
+        app(SyncService::class)->syncUser($user);
+
+        $commit = ActivityEvent::query()
+            ->where('user_id', $user->id)
+            ->where('type', 'commit')
+            ->firstOrFail();
+
+        $this->assertSame('aaa111', $commit->metadata['sha']);
+
+        // A new ref has nothing to compare against: only events + head listing.
+        Http::assertSent(fn ($request) => str_contains($request->url(), "/commits?sha={$head}"));
+        Http::assertSentCount(2);
+    }
+
+    public function test_a_failed_compare_falls_back_to_the_head_listing(): void
+    {
+        Http::fake([
+            'api.github.com/users/*/events/public' => Http::response([
+                $this->pushEvent('5000000003', [
+                    'ref' => 'refs/heads/main',
+                    'before' => '1111111111111111111111111111111111111111',
+                    'head' => 'dddddddddddddddddddddddddddddddddddddddd',
+                ]),
+            ], 200),
+            'api.github.com/repos/*/compare/*' => Http::response(['message' => 'Not Found'], 404),
+            'api.github.com/repos/*/commits*' => Http::response([
+                $this->pushedCommit('eee222', 'fix: recover from a bad compare'),
+            ], 200),
+        ]);
+
+        $user = User::factory()->create();
+
+        app(SyncService::class)->syncUser($user);
+
+        $commit = ActivityEvent::query()
+            ->where('user_id', $user->id)
+            ->where('type', 'commit')
+            ->firstOrFail();
+
+        $this->assertSame('eee222', $commit->metadata['sha']);
+    }
+
+    public function test_the_same_commit_never_scores_twice_across_pushes(): void
+    {
+        Http::fake([
+            'api.github.com/users/*/events/public' => Http::sequence()
+                ->push([$this->pushEvent('5000000004', [
+                    'ref' => 'refs/heads/main',
+                    'before' => '1111111111111111111111111111111111111111',
+                    'head' => 'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
+                ])])
+                ->push([$this->pushEvent('5000000005', [
+                    'ref' => 'refs/heads/other',
+                    'before' => '2222222222222222222222222222222222222222',
+                    'head' => 'ffffffffffffffffffffffffffffffffffffffff',
+                ])]),
+            'api.github.com/repos/*/compare/*' => Http::response([
+                'commits' => [$this->pushedCommit('fff333', 'feat: counted once')],
+            ], 200),
+        ]);
+
+        $user = User::factory()->create();
+
+        app(SyncService::class)->syncUser($user);
+        app(SyncService::class)->syncUser($user->fresh());
+
+        $this->assertSame(1, ActivityEvent::query()
+            ->where('user_id', $user->id)
+            ->where('type', 'commit')
+            ->count());
+        // commit + new_repo, and the second push contributes nothing.
+        $this->assertSame(5 + 30, $user->fresh()->total_xp);
+    }
+
     public function test_a_rate_limited_github_response_is_recorded_instead_of_crashing(): void
     {
         Http::fake(['*' => Http::response(['message' => 'API rate limit exceeded'], 403, [
@@ -199,6 +330,36 @@ class SyncTest extends TestCase
                     ],
                 ],
             ],
+        ];
+    }
+
+    /**
+     * A PushEvent as GitHub serves it today: no `commits` array, just the
+     * ref/head/before triple (see docs/decisions.md).
+     *
+     * @return array<string, mixed>
+     */
+    private function pushEvent(string $id, array $payload): array
+    {
+        return [
+            'id' => $id,
+            'type' => 'PushEvent',
+            'repo' => ['name' => 'octocat/hello-world'],
+            'created_at' => now('UTC')->subMinutes(10)->toIso8601String(),
+            'payload' => $payload,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function pushedCommit(string $sha, string $message): array
+    {
+        return [
+            'sha' => $sha,
+            'message' => $message,
+            'author' => ['name' => 'Octo Cat'],
+            'url' => "https://github.com/octocat/hello-world/commit/{$sha}",
         ];
     }
 

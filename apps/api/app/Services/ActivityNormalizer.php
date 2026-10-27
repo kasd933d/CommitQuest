@@ -13,7 +13,11 @@ use Illuminate\Support\Str;
  *
  * Rules (PRD §4.2):
  *  - PushEvent          -> one row per commit, max 20 per push, empty or
- *                          duplicate messages inside one push are dropped
+ *                          duplicate messages inside one push are dropped;
+ *                          the pushed range is read from the payload when it
+ *                          carries `commits`, otherwise resolved through the
+ *                          Compare API (GitHub removed the payload list)
+ *  - a commit sha is counted at most once per user, ever
  *  - PullRequestEvent   -> pr_opened / pr_merged (only when merged)
  *  - PullRequestReview  -> pr_review
  *  - IssuesEvent closed -> issue_closed
@@ -26,6 +30,12 @@ class ActivityNormalizer
     public const MAX_AGE_DAYS = 90;
 
     public const MAX_COMMITS_PER_PUSH = 20;
+
+    /** @var array<string, true> commit shas seen earlier in this normalize() call */
+    private array $seenShas = [];
+
+    /** @var array<string, array<string, true>> repo -> shas already in activity_events */
+    private array $recordedShas = [];
 
     public function __construct(private readonly GithubService $github) {}
 
@@ -41,6 +51,9 @@ class ActivityNormalizer
      */
     public function normalize(User $user, array $events): array
     {
+        $this->seenShas = [];
+        $this->recordedShas = [];
+
         $rows = [];
         $cutoff = now('UTC')->subDays(self::MAX_AGE_DAYS);
 
@@ -56,7 +69,7 @@ class ActivityNormalizer
                 continue;
             }
 
-            foreach ($this->rowsFor($event, $eventId, $repo, $occurredAt) as $row) {
+            foreach ($this->rowsFor($user, $event, $eventId, $repo, $occurredAt) as $row) {
                 $rows[] = $row;
             }
         }
@@ -69,13 +82,13 @@ class ActivityNormalizer
     /**
      * @return list<array{github_event_id: string, type: ActivityType, repo_full_name: string, occurred_at: CarbonImmutable, metadata: array<string, mixed>}>
      */
-    private function rowsFor(array $event, string $eventId, string $repo, CarbonImmutable $occurredAt): array
+    private function rowsFor(User $user, array $event, string $eventId, string $repo, CarbonImmutable $occurredAt): array
     {
         $type = (string) ($event['type'] ?? '');
         $payload = is_array($event['payload'] ?? null) ? $event['payload'] : [];
 
         return match ($type) {
-            'PushEvent' => $this->commitRows($eventId, $repo, $occurredAt, $payload),
+            'PushEvent' => $this->commitRows($user, $eventId, $repo, $occurredAt, $payload),
             'PullRequestEvent' => $this->pullRequestRows($eventId, $repo, $occurredAt, $payload),
             'PullRequestReviewEvent' => $this->reviewRows($eventId, $repo, $occurredAt, $payload),
             'IssuesEvent' => $this->issueRows($eventId, $repo, $occurredAt, $payload),
@@ -86,9 +99,22 @@ class ActivityNormalizer
     /**
      * @return list<array{github_event_id: string, type: ActivityType, repo_full_name: string, occurred_at: CarbonImmutable, metadata: array<string, mixed>}>
      */
-    private function commitRows(string $eventId, string $repo, CarbonImmutable $occurredAt, array $payload): array
+    private function commitRows(User $user, string $eventId, string $repo, CarbonImmutable $occurredAt, array $payload): array
     {
-        $commits = is_array($payload['commits'] ?? null) ? array_slice($payload['commits'], 0, self::MAX_COMMITS_PER_PUSH) : [];
+        $commits = is_array($payload['commits'] ?? null) ? $payload['commits'] : [];
+
+        if ($commits === []) {
+            // GitHub no longer includes `commits` in PushEvent payloads, so
+            // the pushed range is resolved through the API instead.
+            $commits = $this->github->pushCommits(
+                $user,
+                $repo,
+                trim((string) ($payload['before'] ?? '')),
+                trim((string) ($payload['head'] ?? '')),
+            );
+        }
+
+        $commits = array_slice($commits, 0, self::MAX_COMMITS_PER_PUSH);
 
         $rows = [];
         $seenMessages = [];
@@ -104,6 +130,17 @@ class ActivityNormalizer
             $seenMessages[$signature] = true;
 
             $sha = (string) ($commit['sha'] ?? '');
+
+            // The same commit must never score twice, whether it resurfaces
+            // in another push or in the looser new-ref listing above.
+            if ($sha !== '' && $this->shaAlreadyCounted($user, $repo, $sha)) {
+                continue;
+            }
+
+            if ($sha !== '') {
+                $this->seenShas[$repo.':'.mb_strtolower($sha)] = true;
+            }
+
             $rows[] = [
                 'github_event_id' => $sha !== '' ? "{$eventId}:{$sha}" : "{$eventId}:{$index}",
                 'type' => ActivityType::Commit,
@@ -119,6 +156,36 @@ class ActivityNormalizer
         }
 
         return $rows;
+    }
+
+    private function shaAlreadyCounted(User $user, string $repo, string $sha): bool
+    {
+        $key = $repo.':'.mb_strtolower($sha);
+
+        if (isset($this->seenShas[$key])) {
+            return true;
+        }
+
+        if (! isset($this->recordedShas[$repo])) {
+            $recorded = [];
+
+            ActivityEvent::query()
+                ->where('user_id', $user->id)
+                ->where('repo_full_name', $repo)
+                ->where('type', ActivityType::Commit)
+                ->get(['metadata'])
+                ->each(function (ActivityEvent $event) use (&$recorded): void {
+                    $sha = mb_strtolower((string) ($event->metadata['sha'] ?? ''));
+
+                    if ($sha !== '') {
+                        $recorded[$sha] = true;
+                    }
+                });
+
+            $this->recordedShas[$repo] = $recorded;
+        }
+
+        return isset($this->recordedShas[$repo][mb_strtolower($sha)]);
     }
 
     /**
