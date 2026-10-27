@@ -351,15 +351,21 @@ class SyncTest extends TestCase
     }
 
     /**
+     * A commit as the Compare / list-commits endpoints return it: message and
+     * author nested under `commit` (GithubService::flattenCommits() un-nests
+     * them before the normalizer scores them).
+     *
      * @return array<string, mixed>
      */
     private function pushedCommit(string $sha, string $message): array
     {
         return [
             'sha' => $sha,
-            'message' => $message,
-            'author' => ['name' => 'Octo Cat'],
-            'url' => "https://github.com/octocat/hello-world/commit/{$sha}",
+            'html_url' => "https://github.com/octocat/hello-world/commit/{$sha}",
+            'commit' => [
+                'message' => $message,
+                'author' => ['name' => 'Octo Cat'],
+            ],
         ];
     }
 

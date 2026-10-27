@@ -126,7 +126,7 @@ class GithubService
                 $commits = $response->json('commits');
 
                 if (is_array($commits)) {
-                    return $commits;
+                    return $this->flattenCommits($commits);
                 }
                 // Malformed body: fall through to the head listing below.
             }
@@ -146,7 +146,38 @@ class GithubService
 
         $commits = $response->json();
 
-        return is_array($commits) ? $commits : [];
+        return is_array($commits) ? $this->flattenCommits($commits) : [];
+    }
+
+    /**
+     * Both endpoints nest the message and author under `commit` (the old
+     * Events API payload had them at the top level); flatten them into the
+     * shape ActivityNormalizer scores.
+     *
+     * @param  list<mixed>  $commits
+     * @return list<array<string, mixed>>
+     */
+    private function flattenCommits(array $commits): array
+    {
+        $flat = [];
+
+        foreach ($commits as $commit) {
+            if (! is_array($commit)) {
+                continue;
+            }
+
+            $author = (string) ($commit['commit']['author']['name'] ?? '');
+            $author = $author !== '' ? $author : (string) ($commit['commit']['committer']['name'] ?? '');
+
+            $flat[] = [
+                'sha' => (string) ($commit['sha'] ?? ''),
+                'message' => (string) ($commit['commit']['message'] ?? ''),
+                'author' => ['name' => $author],
+                'url' => (string) ($commit['html_url'] ?? ''),
+            ];
+        }
+
+        return $flat;
     }
 
     private function interpret(Response $response, ?string $previousEtag): GithubEventsResult
