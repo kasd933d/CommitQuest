@@ -12,7 +12,6 @@ use App\Models\User;
 use App\Models\UserBadge;
 use App\Models\UserQuest;
 use Carbon\CarbonImmutable;
-use Illuminate\Support\Facades\Schema;
 
 /**
  * Badges (PRD §4.6): permanent achievements evaluated after every ingestion.
@@ -93,11 +92,8 @@ class BadgeService
                 ->where('status', UserQuest::STATUS_COMPLETED)
                 ->whereHas('template', fn ($query) => $query->where('period', 'weekly'))
                 ->count() >= 5,
-            // Guild Founder (guilds ship in M4): matched lazily, re-checked
-            // whenever the user's activity is processed. The table guard keeps
-            // M3 working before M4's migration exists.
-            'guild_founder' => Schema::hasTable('guilds')
-                && (bool) \DB::table('guilds')->where('owner_id', $user->id)->exists(),
+            // Guild Founder (PRD §4.6): matched when the user owns a guild.
+            'guild_founder' => (bool) \DB::table('guilds')->where('owner_id', $user->id)->exists(),
             default => false,
         };
     }
