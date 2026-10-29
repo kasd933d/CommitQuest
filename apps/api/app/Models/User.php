@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\SyncStatus;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Laravel\Sanctum\HasApiTokens;
@@ -99,5 +100,31 @@ class User extends Authenticatable
     public function syncRuns(): HasMany
     {
         return $this->hasMany(SyncRun::class);
+    }
+
+    /**
+     * @return HasMany<UserQuest, $this>
+     */
+    public function quests(): HasMany
+    {
+        return $this->hasMany(UserQuest::class);
+    }
+
+    /**
+     * @return BelongsToMany<Badge, $this>
+     */
+    public function badges(): BelongsToMany
+    {
+        return $this->belongsToMany(Badge::class, 'user_badges')
+            ->withPivot('unlocked_at')
+            ->withTimestamps();
+    }
+
+    /**
+     * @return HasMany<Notification, $this>
+     */
+    public function notifications(): HasMany
+    {
+        return $this->hasMany(Notification::class);
     }
 }

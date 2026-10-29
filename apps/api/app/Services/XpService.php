@@ -6,6 +6,8 @@ namespace App\Services;
 
 use App\Enums\ActivityType;
 use App\Models\ActivityEvent;
+use App\Models\User;
+use App\Models\UserQuest;
 use App\Models\XpLedger;
 use App\Support\Levels;
 use Carbon\CarbonImmutable;
@@ -19,6 +21,7 @@ use Carbon\CarbonImmutable;
  *
  * Every mutation happens inside a transaction with the event row locked, and
  * `users.total_xp` / `users.level` are always recomputed from the ledger.
+ * Level increases notify the user (PRD §4.9).
  */
 class XpService
 {
@@ -27,6 +30,8 @@ class XpService
 
     /** Maximum XP a user can earn from activity per day (quest/badge XP is exempt). */
     public const MAX_XP_PER_DAY = 300;
+
+    public function __construct(private readonly NotificationService $notifications) {}
 
     /**
      * Award XP for an event if the rules allow it.
@@ -105,13 +110,35 @@ class XpService
     }
 
     /**
+     * Pay a quest reward (PRD §4.5). Quest XP lives in the same ledger but is
+     * exempt from the daily activity caps, and the unique
+     * `(user_id, source_type, source_id)` index makes a double pay impossible.
+     * The caller has already locked the quest row and verified it is active.
+     */
+    public function awardQuest(User $user, UserQuest $quest, int $amount, string $reason): void
+    {
+        XpLedger::query()->create([
+            'user_id' => $user->id,
+            'source_type' => XpLedger::SOURCE_QUEST,
+            'source_id' => $quest->id,
+            'amount' => $amount,
+            'reason' => $reason,
+        ]);
+
+        $this->refreshTotals($user->id);
+    }
+
+    /**
      * Recompute total_xp and level from the ledger (PRD §4.3: the cached sum
-     * can always be rebuilt identically).
+     * can always be rebuilt identically). A level increase pushes a
+     * `level_up` notification (PRD §4.9).
      *
      * @return array{total_xp: int, level: int}
      */
     public function recomputeFor(int $userId): array
     {
+        $previousLevel = (int) \DB::table('users')->where('id', $userId)->value('level');
+
         $total = (int) XpLedger::query()->where('user_id', $userId)->sum('amount');
         $level = Levels::fromXp($total);
 
@@ -119,6 +146,14 @@ class XpService
             'total_xp' => $total,
             'level' => $level,
         ]);
+
+        if ($level > $previousLevel) {
+            $user = User::query()->find($userId);
+
+            if ($user !== null) {
+                $this->notifications->levelUp($user, $previousLevel, $level);
+            }
+        }
 
         return ['total_xp' => $total, 'level' => $level];
     }

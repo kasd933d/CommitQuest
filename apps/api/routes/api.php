@@ -33,6 +33,13 @@ Route::prefix('v1')->group(function () {
             // ---- Activity & sync (M2) ---------------------------------------
             Route::get('/me/activity', [MeController::class, 'activity']);
             Route::post('/me/sync', [MeController::class, 'sync']);
+
+            // ---- Streaks, quests, badges, notifications (M3) ---------------
+            Route::get('/me/heatmap', [MeController::class, 'heatmap']);
+            Route::get('/me/quests', [MeController::class, 'quests']);
+            Route::get('/me/badges', [MeController::class, 'badges']);
+            Route::get('/me/notifications', [MeController::class, 'notifications']);
+            Route::post('/me/notifications/read', [MeController::class, 'readNotifications']);
         });
     });
 });

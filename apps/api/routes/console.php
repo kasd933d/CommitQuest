@@ -13,3 +13,8 @@ Artisan::command('inspire', function () {
 // runs `php artisan queue:work`; this process only schedules.
 Schedule::command('xp:rebuild')->hourlyAt(5)->withoutOverlapping();
 Schedule::command('github:sync-active')->everyFifteenMinutes()->withoutOverlapping();
+
+// M3: quest assignment follows each user's local midnight, so a frequent
+// idempotent run replaces per-timezone crons (PRD §4.5).
+Schedule::command('quests:assign-due')->everyFifteenMinutes()->withoutOverlapping();
+Schedule::command('notify:streak-risk')->everyFifteenMinutes()->withoutOverlapping();

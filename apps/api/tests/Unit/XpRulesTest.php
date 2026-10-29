@@ -67,8 +67,10 @@ class XpRulesTest extends TestCase
         $user = User::factory()->create();
         $event = $this->makeEvent($user, ActivityType::PrMerged);
 
-        (new ProcessActivityEvent($event->id))->handle(app(XpService::class));
-        (new ProcessActivityEvent($event->id))->handle(app(XpService::class));
+        $job = new ProcessActivityEvent($event->id);
+
+        $this->app->call([$job, 'handle']);
+        $this->app->call([$job, 'handle']);
 
         $this->assertSame(40, $user->fresh()->total_xp);
         $this->assertSame(1, XpLedger::query()->count());
