@@ -160,3 +160,39 @@ user + repo (or already emitted earlier in the same normalize pass) is never
 counted again, so branch copies, re-pushes and the fallback listing cannot
 double-award. Legacy payloads that still contain `commits` are handled without
 any extra HTTP call. Tests cover all three paths plus cross-push dedupe.
+
+### M3: quest assignment runs every 15 minutes, not at each user's midnight
+PRD says "each day at 00:00 in the user's timezone assign 3 daily quests".
+Per-timezone cron is operationally heavy (one job per tz), so instead
+quests:assign-due runs every 15 minutes for all users active in the last
+168h and assigns whatever their *current local day/week* is missing.
+Assignment is idempotent (unique (user_id, quest_template_id, period_start)
+index + insertOrIgnore), so extra ticks are free. GET /me/quests also
+assigns on demand, so a fresh account never sees an empty board.
+
+### M3: quest progress is recomputed from activity events, never incremented
+QuestService::progress() counts ctivity_events inside the quest's UTC
+window (derived from the user's timezone) on every ingested event instead of
+incrementing a counter. Recompute-over-increment cannot drift, survives event
+reprocessing, and counts events even when the daily XP cap skipped them
+(quests measure activity, not paid XP). Completion pays through the ledger's
+unique (user_id, source_type, source_id) index, so a double pay is
+impossible; quest XP is exempt from the activity caps per the PRD.
+
+### M3: reference data ships as a migration, not a seeder
+Quest templates (13) and badges (12) are upserted by a migration so every
+environment -- local, RefreshDatabase tests, production -- has them without
+an extra operational step (no `db:seed` to remember on deploy). Upserts keep
+it re-runnable when templates are tuned.
+
+### M3: badges grant no XP
+The PRD's badge table has no reward column and section 4.6 lists no XP, so
+badges are pure achievements (notification + display). If rewards are wanted
+later, they must go through xp_ledger with source_type = badge to stay
+rebuildable by `xp:rebuild`.
+
+### M3: heatmap returns whole Monday-start weeks
+The 12-week heatmap returns exactly 12x7 cells aligned to Monday-start weeks
+(in the user's timezone) instead of a rolling 84-day window, so a
+grid-flow-col render gives one tidy column per week with stable weekday
+rows. Days after today are included as zero-count cells.
