@@ -141,6 +141,85 @@ export interface MarkNotificationsReadResponse {
   unread_count: number;
 }
 
+/** Public profile (`GET /users/{username}`). */
+export interface PublicProfile {
+  username: string;
+  display_name: string | null;
+  avatar_url: string | null;
+  total_xp: number;
+  level: number;
+  current_streak: number;
+  longest_streak: number;
+  streak_freezes: number;
+  joined_at: string | null;
+  heatmap: HeatmapDay[];
+  badges: Badge[];
+  recent_quests: UserQuest[];
+}
+
+export type LeaderboardScope = "weekly" | "all";
+
+export interface LeaderboardEntry {
+  user_id: number;
+  username: string;
+  display_name: string | null;
+  avatar_url: string | null;
+  xp: number;
+  level: number;
+  rank: number;
+}
+
+export interface LeaderboardResponse {
+  scope: LeaderboardScope;
+  week_start: string | null;
+  entries: LeaderboardEntry[];
+}
+
+export interface Guild {
+  id: number;
+  name: string;
+  slug: string;
+  description: string | null;
+  is_public: boolean;
+  owner_id: number;
+  owner_username?: string;
+  member_count: number;
+  is_member: boolean;
+  /** Only present for members. */
+  invite_code?: string;
+  created_at: string | null;
+}
+
+export interface GuildLeaderboardEntry {
+  user_id: number;
+  username: string;
+  display_name: string | null;
+  avatar_url: string | null;
+  weekly_xp: number;
+  rank: number;
+}
+
+export interface GuildsResponse {
+  mine: Guild[];
+  discover: Guild[];
+}
+
+export interface GuildDetailResponse {
+  guild: Guild;
+  leaderboard: GuildLeaderboardEntry[];
+}
+
+/** `GET /stats` response (landing page counters). */
+export interface PlatformStats {
+  users: number;
+  total_xp: number;
+  commits: number;
+  pull_requests: number;
+  quests_completed: number;
+  badges_unlocked: number;
+  guilds: number;
+}
+
 /** `GET /me/activity` response: page of events plus the current sync state. */
 export interface ActivityFeed extends Resource<ActivityEvent[]> {
   sync: SyncState;

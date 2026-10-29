@@ -11,7 +11,8 @@ const LINKS = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/quests", label: "Quests" },
   { href: "/badges", label: "Badges" },
-  { href: "/leaderboard", label: "Leaderboard", disabled: true },
+  { href: "/guilds", label: "Guilds" },
+  { href: "/leaderboard", label: "Leaderboard" },
 ];
 
 export function Nav({ user }: { user?: NavUser }) {
@@ -23,7 +24,7 @@ export function Nav({ user }: { user?: NavUser }) {
         </Link>
 
         <nav aria-label="Main" className="flex items-center gap-1 sm:gap-2">
-          {LINKS.filter((link) => !link.disabled).map((link) => (
+          {LINKS.map((link) => (
             <Link
               key={link.href}
               href={link.href}
@@ -37,6 +38,13 @@ export function Nav({ user }: { user?: NavUser }) {
         {user ? (
           <div className="flex items-center gap-2">
             <NotificationBell />
+
+            <Link
+              href="/settings"
+              className="rounded px-2 py-1.5 text-sm text-muted hover:bg-surface-2 hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+            >
+              Settings
+            </Link>
 
             <div className="flex items-center gap-2 rounded px-2 py-1 text-sm">
               {user.avatar_url ? (
