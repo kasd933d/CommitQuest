@@ -1,5 +1,7 @@
 import { Nav } from "@/components/nav";
 import { ActivityFeed } from "@/components/activity-feed";
+import { Heatmap } from "@/components/heatmap";
+import { QuestCard } from "@/components/quest-card";
 import { SyncButton } from "@/components/sync-button";
 import { XpBar } from "@/components/xp-bar";
 import { apiServer } from "@/lib/api";
@@ -7,6 +9,8 @@ import { clearToken, getToken } from "@/lib/session";
 import {
   ApiRequestError,
   type ActivityFeed as ActivityFeedResponse,
+  type HeatmapResponse,
+  type QuestsResponse,
   type Resource,
   type User,
 } from "@/types/api";
@@ -23,15 +27,21 @@ export default async function DashboardPage() {
 
   let user: User | null = null;
   let feed: ActivityFeedResponse | null = null;
+  let heatmap: HeatmapResponse | null = null;
+  let quests: QuestsResponse | null = null;
   let errorMessage: string | null = null;
 
   try {
-    const [me, activity] = await Promise.all([
+    const [me, activity, heatmapResponse, questsResponse] = await Promise.all([
       apiServer<Resource<User>>("/me", { token }),
       apiServer<ActivityFeedResponse>("/me/activity", { token }),
+      apiServer<HeatmapResponse>("/me/heatmap", { token }),
+      apiServer<QuestsResponse>("/me/quests", { token }),
     ]);
     user = me.data;
     feed = activity;
+    heatmap = heatmapResponse;
+    quests = questsResponse;
   } catch (error) {
     if (error instanceof ApiRequestError && error.status === 401) {
       // The token was revoked (logout elsewhere, account deleted, expired).
@@ -84,6 +94,31 @@ export default async function DashboardPage() {
               <StatCard label="Streak freezes" value={String(user.streak_freezes)} hint="Earned every 7-day streak" />
               <SyncCard status={user.sync_status} lastSyncedAt={user.last_synced_at} />
             </div>
+
+            {heatmap ? (
+              <div className="mt-8">
+                <Heatmap days={heatmap.days} />
+              </div>
+            ) : null}
+
+            {quests && quests.current.length > 0 ? (
+              <section className="mt-8" aria-labelledby="quests-heading">
+                <div className="flex items-baseline justify-between">
+                  <h2 id="quests-heading" className="font-pixel text-[11px] text-primary">
+                    Active quests
+                  </h2>
+                  <a href="/quests" className="text-xs text-accent hover:underline">
+                    All quests →
+                  </a>
+                </div>
+
+                <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                  {quests.current.map((quest) => (
+                    <QuestCard key={quest.id} quest={quest} />
+                  ))}
+                </div>
+              </section>
+            ) : null}
 
             <section className="panel mt-8 p-6" aria-labelledby="activity-heading">
               <div className="flex flex-wrap items-start justify-between gap-4">

@@ -83,8 +83,10 @@ class StreakService
     }
 
     /**
-     * Last 12 weeks of local days with the number of qualifying events each
-     * (PRD §4.4: dashboard heatmap). Oldest day first, today last.
+     * Last 12 whole weeks (Monday-start, user's timezone) with the number of
+     * qualifying events per day (PRD §4.4: dashboard heatmap). The result is
+     * exactly 12 × 7 cells, Monday first, so a `grid-flow-col` render lines
+     * up as one column per week; days after today are simply zero.
      *
      * @return list<array{date: string, count: int}>
      */
@@ -92,10 +94,13 @@ class StreakService
     {
         $timezone = $this->timezoneOf($user->timezone);
         $today = CarbonImmutable::now($timezone)->startOfDay();
-        $start = $today->subDays(self::HEATMAP_WEEKS * 7 - 1);
+
+        // Window: the 12 Monday-start weeks ending with the current week.
+        $start = $today->startOfWeek(CarbonImmutable::MONDAY)->subWeeks(self::HEATMAP_WEEKS - 1);
+        $end = $start->addWeeks(self::HEATMAP_WEEKS);
 
         $windowStart = $start->setTimezone('UTC');
-        $windowEnd = $today->addDay()->setTimezone('UTC');
+        $windowEnd = $end->setTimezone('UTC');
 
         $counts = [];
 
@@ -109,7 +114,7 @@ class StreakService
             });
 
         $days = [];
-        for ($day = $start; $day->lessThan($today->addDay()); $day = $day->addDay()) {
+        for ($day = $start; $day->lessThan($end); $day = $day->addDay()) {
             $key = $day->toDateString();
             $days[] = ['date' => $key, 'count' => $counts[$key] ?? 0];
         }

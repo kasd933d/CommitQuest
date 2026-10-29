@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { NotificationBell } from "@/components/notification-bell";
 
 export interface NavUser {
   username: string;
@@ -8,6 +9,8 @@ export interface NavUser {
 
 const LINKS = [
   { href: "/dashboard", label: "Dashboard" },
+  { href: "/quests", label: "Quests" },
+  { href: "/badges", label: "Badges" },
   { href: "/leaderboard", label: "Leaderboard", disabled: true },
 ];
 
@@ -33,6 +36,8 @@ export function Nav({ user }: { user?: NavUser }) {
 
         {user ? (
           <div className="flex items-center gap-2">
+            <NotificationBell />
+
             <div className="flex items-center gap-2 rounded px-2 py-1 text-sm">
               {user.avatar_url ? (
                 // eslint-disable-next-line @next/next/no-img-element

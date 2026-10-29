@@ -63,6 +63,84 @@ export interface SyncState {
   last_synced_at: string | null;
 }
 
+/** One cell of the 12-week streak heatmap (`GET /me/heatmap`). */
+export interface HeatmapDay {
+  date: string; // YYYY-MM-DD in the user's timezone
+  count: number;
+}
+
+export interface HeatmapResponse {
+  days: HeatmapDay[];
+}
+
+export type QuestPeriod = "daily" | "weekly";
+
+export type QuestStatus = "active" | "completed" | "expired";
+
+/** One assigned quest (`GET /me/quests`). */
+export interface UserQuest {
+  id: number;
+  key: string;
+  title: string;
+  description: string;
+  period: QuestPeriod;
+  metric: string;
+  icon: string;
+  progress: number;
+  target: number;
+  xp_reward: number;
+  status: QuestStatus;
+  period_start: string;
+  period_end: string;
+  completed_at: string | null;
+}
+
+export interface QuestsResponse {
+  current: UserQuest[];
+  recent: UserQuest[];
+}
+
+export type BadgeRarity = "common" | "rare" | "epic" | "legendary";
+
+/** One badge with the viewer's unlock state (`GET /me/badges`). */
+export interface Badge {
+  key: string;
+  name: string;
+  description: string;
+  icon: string;
+  rarity: BadgeRarity;
+  unlocked: boolean;
+  unlocked_at: string | null;
+}
+
+export type NotificationType =
+  | "level_up"
+  | "quest_complete"
+  | "badge_unlocked"
+  | "streak_at_risk"
+  | "guild_invite";
+
+/** One in-app notification (`GET /me/notifications`). */
+export interface AppNotification {
+  id: number;
+  type: NotificationType;
+  title: string;
+  body: string;
+  data: Record<string, unknown> | null;
+  read_at: string | null;
+  created_at: string;
+}
+
+export interface NotificationsResponse {
+  data: AppNotification[];
+  unread_count: number;
+}
+
+/** `POST /me/notifications/read` response. */
+export interface MarkNotificationsReadResponse {
+  unread_count: number;
+}
+
 /** `GET /me/activity` response: page of events plus the current sync state. */
 export interface ActivityFeed extends Resource<ActivityEvent[]> {
   sync: SyncState;

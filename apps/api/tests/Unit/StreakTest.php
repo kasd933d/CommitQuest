@@ -182,9 +182,11 @@ class StreakTest extends TestCase
         $days = $streaks->heatmap($user);
 
         $this->assertCount(12 * 7, $days);
-        $this->assertSame(now('UTC')->toDateString(), $days[array_key_last($days)]['date'], 'today is the last cell');
+        // Monday-aligned weeks (PRD §4.4): the grid starts on a Monday.
+        $this->assertSame(1, CarbonImmutable::parse($days[0]['date'])->dayOfWeekIso, 'first cell is a Monday');
 
         $byDate = array_column($days, 'count', 'date');
+        $this->assertArrayHasKey(now('UTC')->toDateString(), $byDate, 'today is inside the window');
         $this->assertSame(2, $byDate[now('UTC')->toDateString()]);
         $this->assertSame(1, $byDate[now('UTC')->subDays(3)->toDateString()]);
         $this->assertSame(0, $byDate[now('UTC')->subDays(1)->toDateString()]);
