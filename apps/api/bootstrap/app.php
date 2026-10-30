@@ -3,6 +3,7 @@
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Request;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -16,7 +17,18 @@ return Application::configure(basePath: dirname(__DIR__))
         // The API is consumed by the Next.js proxy (server to server) and
         // optionally by browsers on the web origin only (see config/cors.php).
         $middleware->trustProxies(at: '*');
+
+        // There is no session `login` route (the default callback would
+        // throw RouteNotFoundException and surface as a 500). Unauthenticated
+        // requests get a 401 JSON body via shouldRenderJsonWhen below.
+        $middleware->redirectGuestsTo(fn () => null);
     })
     ->withExceptions(function (Exceptions $exceptions) {
-        //
+        // API-only backend: there is no session "login" page, so
+        // AuthenticationException's redirect fallback would blow up on
+        // `route('login')`. Always render JSON errors on /api/*, so an
+        // unauthenticated hit returns 401 JSON even without an Accept header.
+        $exceptions->shouldRenderJsonWhen(
+            fn (Request $request, Throwable $_e) => $request->is('api/*'),
+        );
     })->create();

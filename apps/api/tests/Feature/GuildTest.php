@@ -286,6 +286,12 @@ class GuildTest extends TestCase
     {
         $this->getJson('/api/v1/guilds')->assertUnauthorized();
         $this->postJson('/api/v1/guilds', ['name' => 'x'])->assertUnauthorized();
+
+        // A browser hitting the API directly sends no JSON Accept header;
+        // it must still get 401 JSON (not the missing `route('login')`
+        // redirect fallback, which used to 500).
+        $this->get('/api/v1/guilds')->assertUnauthorized();
+        $this->get('/api/v1/guilds/code-crafters')->assertUnauthorized();
     }
 
     private function makeGuild(User $owner, string $name, bool $isPublic = true): Guild
