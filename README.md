@@ -21,6 +21,63 @@ commitquest/
 └── docs/
 ```
 
+## How it works
+
+CommitQuest turns public GitHub activity into game progress:
+
+1. **Sign in with GitHub.** The OAuth flow is state-validated and exchanged
+   server-side; only then does a Sanctum token land in an httpOnly cookie —
+   the GitHub token itself never reaches the browser.
+2. **Activity becomes XP.** A scheduled job polls the GitHub Events API
+   (ETag-cached, sha-deduplicated), normalizes events (including commit ranges
+   via the Compare API) into `activity_events`, and an append-only
+   `xp_ledger` scores them with fair daily caps. XP is recomputed from
+   scratch on every sync, so replays and corrections stay consistent.
+3. **The RPG layer.** Timezone-aware streaks (with freezes), 3 daily quests +
+   1 weekly boss quest, 12 unlockable badges and notifications keep the habit
+   going — all rules live in `app/Services` and are unit tested.
+4. **Compete and share.** Weekly and all-time leaderboards, guilds with their
+   own weekly board, a public profile page with an OG image, and a embeddable
+   README badge SVG.
+
+```mermaid
+flowchart LR
+  subgraph Client
+    B[Browser<br/>Next.js 16]
+  end
+  subgraph Server
+    P[Next proxy<br/>/api/v1/*] --> A[Laravel API<br/>Sanctum]
+    A --> S[Services<br/>XP · Streak · Quest · Guild]
+    A --> Q[(Queue)]
+    A --> M[(MySQL 8<br/>SQLite dev)]
+    SCH[Scheduler] --> Q
+  end
+  subgraph GitHub
+    O[OAuth]
+    E[Events API]
+  end
+  B -- httpOnly cookie --> P
+  Q --> E
+  O --> B
+```
+
+## Screenshots
+
+| Landing | Leaderboard |
+|---|---|
+| ![Landing page with live stats](./docs/screenshots/landing.png) | ![Weekly and all-time leaderboard](./docs/screenshots/leaderboard.png) |
+
+| Guild weekly board | Public profile | Quests |
+|---|---|---|
+| ![Guild weekly leaderboard](./docs/screenshots/guild.png) | ![Public profile card](./docs/screenshots/profile.png) | ![Daily and weekly quests](./docs/screenshots/quests.png) |
+
+Badge in a README (rendered by the `/api/badge/{username}.svg` route — the URL
+becomes public once the app is deployed):
+
+```md
+[![CommitQuest badge](https://YOUR-DEPLOY/api/badge/your-username.svg)](https://YOUR-DEPLOY/u/your-username)
+```
+
 ## Quick start
 
 ### Prerequisites
@@ -102,4 +159,4 @@ CI (`.github/workflows/ci.yml`) runs lint, type check, backend tests and both bu
 | M2 — Ingestion & XP | ✅ done | GitHub Events sync (ETag, backoff), normalizer (commit ranges via the Compare API, sha-level dedupe), `activity_events`, `XpService` + ledger, 10 commits/repo/day & 300 XP/day caps, `xp:rebuild`, activity feed + "Sync now" |
 | M3 — Streaks, quests, badges | ✅ done | `StreakService` (timezone-aware days, freezes 1/7-day milestone max 2, 12-week heatmap), `QuestService` (3 daily + 1 weekly boss, auto progress + auto-claimed rewards), 12 badges, notifications (level up, quest, badge, streak-at-risk), `/quests` + `/badges` pages, notification bell |
 | M4 — Social | ✅ done | Public profiles `/u/[username]` (heatmap, badges, recent quests), dynamic OG image, README badge SVG (`/api/badge/{username}.svg`, 10-min cache), global leaderboard (weekly + all-time top 100), guilds (max 3/user, max 50 members, invite codes, weekly guild leaderboard), settings (timezone, visibility, badge snippet, account deletion) |
-| M5 — Polish & launch | ⬜ | Landing page, a11y, security, seed data, deploy |
+| M5 — Polish & launch | 🚧 code done, deploy pending | Landing page with live `/stats` counters + "How it works", demo seeder (3 users, 1 guild), security headers (nosniff, frame-deny, referrer/permissions policy, CSP for the badge SVG), a11y pass (skip link, reduced-motion), API 401 hardening (no more 500 on unauthenticated browser hits), README screenshots + architecture diagram — **public deploy awaiting hosting choice** |

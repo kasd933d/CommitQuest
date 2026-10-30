@@ -232,3 +232,40 @@ camo proxy fetches a same-origin URL with CDN-friendly s-maxage=600
 headers. Unknown/private usernames get a neutral "CommitQuest · @user"
 badge so the route cannot be used to probe for accounts; usernames are
 regex-validated and the label is XML-escaped to keep the SVG injection-free.
+
+### M5: the landing page fetches /stats server-side and degrades silently
+The marketing page shows live platform counters (adventurers, XP, commits,
+quests) rendered on the server via piServer('/stats'). If the API is down
+or slow, the stats section is simply omitted — the landing page must never
+fail because a counter could not be loaded. This makes / a dynamic (ƒ)
+route; everything else stays as before.
+
+### M5: security headers live in next.config, not per-page
+X-Content-Type-Options, X-Frame-Options DENY, Referrer-Policy and a
+Permissions-Policy that disables camera/microphone/geolocation are applied
+globally via 
+ext.config.ts headers(). The badge SVG route additionally
+gets Content-Security-Policy: default-src 'none' so it cannot execute or
+load anything. No page opts out, so a new route is safe by default.
+
+### M5: unauthenticated API hits return 401 JSON, never 500
+ootstrap/app.php neutralizes Laravel's default oute('login') redirect
+callback (which threw RouteNotFoundException -> 500 for any browser-style
+request without a JSON Accept header) via edirectGuestsTo(fn () => null)
+plus shouldRenderJsonWhen for pi/*. Every error on the API is now JSON
+regardless of the request's Accept header; regression-tested in GuildTest.
+
+### M5: demo data is a separate seeder with an unmistakable id range
+DemoSeeder creates three public users (ada-lovelace, grace-hopper,
+alan-turing) with a week of events, ledger rows, quests and badges, plus the
+'Code Crafters' guild. Fake users carry github_id > 9_000_000_000 so they
+can never collide with real OAuth accounts and can be deleted by range; the
+seeder is deterministic and safe to run repeatedly (firstOrCreate everywhere).
+
+### M5: the guild detail page is auth-only (for now), so the screenshot uses a cookie
+Public guilds are readable by any signed-in user, but the guild page still
+redirects anonymous visitors to /login — the invite code and management
+actions are member-only and the page has no anonymous read-only layout yet.
+The README guild screenshot is captured with headless Chrome and an injected
+cq_token cookie (CDP Network.setCookie) to reflect a real member's view.
+A follow-up could render public guild pages anonymously like profiles do.
