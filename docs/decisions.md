@@ -196,3 +196,39 @@ The 12-week heatmap returns exactly 12x7 cells aligned to Monday-start weeks
 (in the user's timezone) instead of a rolling 84-day window, so a
 grid-flow-col render gives one tidy column per week with stable weekday
 rows. Days after today are included as zero-count cells.
+
+### M4: private profiles 404 everywhere (never confirm existence)
+GET /users/{username} returns 404 for both unknown and private users, and
+the Next.js profile page maps that to 
+otFound(). Returning 403 would
+confirm the account exists, which leaks signups; 404 keeps the surface
+uniform. The all-time leaderboard also filters is_public so private users
+never appear there either.
+
+### M4: weekly windows are UTC Monday 00:00 (per the PRD), not user-local
+PRD §4.7 defines the weekly leaderboard window as "Monday 00:00 UTC to
+Sunday 23:59 UTC", so guild/global weekly boards read xp_ledger.created_at
+against a UTC week start. Streaks and quests stay user-timezone-local per
+§4.4 -- the two rules intentionally differ because leaderboards must be
+comparable across all participants.
+
+### M4: guild limits are enforced in the service under a row lock
+GuildService::create/join wrap the membership count + insert in a
+transaction with lockForUpdate() on the guild row, so the max-3-guilds and
+max-50-members rules cannot be raced past with concurrent joins. The
+guild_members (guild_id, user_id) unique index is the second line of
+defense (insertOrIgnore makes double-joins no-ops).
+
+### M4: the invite code is only serialized to members
+GuildResource gates invite_code behind is_member, so private guilds
+are joinable only by people the code was shared with; non-members reading
+the guild index/detail never see it. Owners regenerate the code (invalidating
+the old one) via a policy-protected endpoint.
+
+### M4: README badge route is a Next.js route, not an API endpoint
+The SVG is rendered by pps/web/src/app/api/badge/[username]/route.ts
+(server-side, calling the API internally with piServer) so GitHub's
+camo proxy fetches a same-origin URL with CDN-friendly s-maxage=600
+headers. Unknown/private usernames get a neutral "CommitQuest · @user"
+badge so the route cannot be used to probe for accounts; usernames are
+regex-validated and the label is XML-escaped to keep the SVG injection-free.
