@@ -40,7 +40,8 @@ export async function generateMetadata({
   const description = `${name} is level ${profile.level} on CommitQuest with ${profile.total_xp.toLocaleString()} XP and a ${profile.current_streak}-day streak.`;
 
   return {
-    title: `${name} · CommitQuest`,
+    // The root layout's template appends "· CommitQuest".
+    title: name,
     description,
     openGraph: {
       title: `${name} — CommitQuest`,
