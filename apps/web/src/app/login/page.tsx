@@ -23,7 +23,7 @@ export default async function LoginPage({
     <>
       <Nav />
 
-      <main className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-4 py-16">
+      <main id="main-content" className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-4 py-16">
         <section className="panel p-6 sm:p-8">
           <h1 className="font-pixel text-sm text-primary">Sign in</h1>
 

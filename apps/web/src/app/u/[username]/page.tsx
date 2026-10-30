@@ -86,7 +86,7 @@ export default async function PublicProfilePage({
     <>
       <Nav user={navUser} />
 
-      <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8">
+      <main id="main-content" className="mx-auto w-full max-w-5xl flex-1 px-4 py-8">
         <article className="panel p-6">
           <div className="flex flex-wrap items-center gap-4">
             {profile.avatar_url ? (

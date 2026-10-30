@@ -52,7 +52,7 @@ export default async function LeaderboardPage({
         }
       />
 
-      <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8">
+      <main id="main-content" className="mx-auto w-full max-w-5xl flex-1 px-4 py-8">
         <h1 className="text-2xl font-bold tracking-tight">Leaderboard</h1>
         <p className="mt-1 text-sm text-muted">
           {scope === "weekly"

@@ -67,7 +67,7 @@ export default async function GuildDetailPage({
         }
       />
 
-      <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8">
+      <main id="main-content" className="mx-auto w-full max-w-5xl flex-1 px-4 py-8">
         <Link href="/guilds" className="text-xs text-accent hover:underline">
           ← All guilds
         </Link>
