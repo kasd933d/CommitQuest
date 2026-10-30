@@ -77,7 +77,11 @@ export default async function OpengraphImage({
 
           <div style={{ display: "flex", flexDirection: "column" }}>
             <div style={{ fontSize: 52, fontWeight: 700 }}>{name}</div>
-            <div style={{ fontSize: 28, color: "#a9b2cc" }}>@{profile?.username ?? username}</div>
+            {/* Concatenate explicitly: `@{expr}` would be two child nodes,
+                which Satori only allows inside a flex container. */}
+            <div style={{ display: "flex", fontSize: 28, color: "#a9b2cc" }}>
+              {`@${profile?.username ?? username}`}
+            </div>
           </div>
         </div>
 
